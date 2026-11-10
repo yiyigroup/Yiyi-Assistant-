@@ -1,6 +1,6 @@
 import { requireApiAccess, noStoreJson } from "@/lib/auth/guard";
 import { getSheetsAdapter } from "@/lib/sheets/client";
-import { loadOrdersFromSheets } from "@/lib/sheets/rows";
+import { loadOrdersFromSheets, orderFingerprint } from "@/lib/sheets/rows";
 import { groupCustomers } from "@/lib/orders/group";
 
 export async function GET(request: Request) {
@@ -11,8 +11,12 @@ export async function GET(request: Request) {
     const adapter = getSheetsAdapter();
     const { orders, syncedAt } = await loadOrdersFromSheets(adapter);
     const groups = groupCustomers(orders);
+    const ordersWithFp = orders.map((o) => ({
+      ...o,
+      fingerprint: orderFingerprint(o),
+    }));
     return noStoreJson({
-      orders,
+      orders: ordersWithFp,
       groups,
       syncedAt,
       stale: false,

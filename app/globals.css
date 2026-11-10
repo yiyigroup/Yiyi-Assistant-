@@ -334,6 +334,49 @@ td {
   color: var(--ink);
 }
 
+.status-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.status-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.status-filter,
+.status-input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+}
+
+.status-input {
+  max-width: 140px;
+}
+
+.status-content {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-live,
+.status-msg {
+  margin-top: 4px;
+  max-width: 160px;
+  line-height: 1.35;
+}
+
 @media (max-width: 580px) {
   .app-header {
     flex-direction: column;

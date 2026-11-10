@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ImportPanel } from "./import-panel";
+import { StatusPanel, type StatusOrder } from "./status-panel";
 
 type SyncState = {
   syncedAt: string | null;
@@ -21,6 +22,7 @@ type GroupSummary = {
 export function OpsDashboard({ email }: { email: string }) {
   const [sync, setSync] = useState<SyncState>({ syncedAt: null, stale: false, error: null });
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [statusOrders, setStatusOrders] = useState<StatusOrder[]>([]);
   const [orderCount, setOrderCount] = useState(0);
   const [shippo, setShippo] = useState("检查中…");
   const [busy, setBusy] = useState(false);
@@ -38,7 +40,21 @@ export function OpsDashboard({ email }: { email: string }) {
         return;
       }
       setGroups(data.groups || []);
-      setOrderCount((data.orders || []).length);
+      const orders = (data.orders || []) as StatusOrder[];
+      setStatusOrders(
+        orders.map((o) => ({
+          id: o.id,
+          sourceSheet: o.sourceSheet,
+          sourceRow: o.sourceRow,
+          name: o.name,
+          orderNumber: o.orderNumber,
+          content: o.content,
+          arrivalOriginal: o.arrivalOriginal,
+          paymentOriginal: o.paymentOriginal,
+          fingerprint: o.fingerprint,
+        })),
+      );
+      setOrderCount(orders.length);
       setSync({ syncedAt: data.syncedAt, stale: false, error: null });
     } catch (e) {
       setSync((s) => ({
@@ -148,7 +164,10 @@ export function OpsDashboard({ email }: { email: string }) {
 
           <section className="panel" id="status">
             <h3>到货 / 付款状态</h3>
-            <div className="note">修改前会核对行指纹。未经验证的服务器响应不会显示为“已保存”。</div>
+            <div className="note">
+              修改前会核对行指纹。未经验证的服务器响应不会显示为“已保存”。失焦不保存 — 必须点「确认」。
+            </div>
+            <StatusPanel orders={statusOrders} onApplied={() => void refresh()} />
           </section>
 
           <section className="panel" id="review">

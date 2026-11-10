@@ -1,8 +1,13 @@
 import { getSheetId, isAllowedTab, type AllowedTab } from "@/lib/config/sheet";
+import { parseCellA1 } from "@/lib/sheets/a1";
+
+export type CellUpdate = { a1: string; value: string };
 
 export type SheetsAdapter = {
   readRange: (tab: AllowedTab, rangeA1: string) => Promise<unknown[][]>;
   appendRows: (tab: AllowedTab, rows: unknown[][]) => Promise<void>;
+  /** Update discrete cells with RAW values (non-updated cells stay untouched). */
+  updateCells: (tab: AllowedTab, updates: CellUpdate[]) => Promise<void>;
   deleteRowsDescending: (
     tab: AllowedTab,
     rowNumbers1Based: number[],
@@ -37,6 +42,20 @@ export function createMockSheets(seed?: Record<string, unknown[][]>): SheetsAdap
       if (!isAllowedTab(tab)) throw new Error("tab not allowed");
       const cur = tabs.get(tab) ?? [];
       tabs.set(tab, [...cur, ...rows]);
+    },
+    async updateCells(tab, updates) {
+      if (!isAllowedTab(tab)) throw new Error("tab not allowed");
+      const cur = [...(tabs.get(tab) ?? [])].map((r) => [...r]);
+      for (const u of updates) {
+        const { col0, row1 } = parseCellA1(u.a1);
+        const idx = row1 - 1;
+        while (cur.length <= idx) cur.push([]);
+        const row = [...(cur[idx] ?? [])];
+        while (row.length <= col0) row.push("");
+        row[col0] = u.value;
+        cur[idx] = row;
+      }
+      tabs.set(tab, cur);
     },
     async deleteRowsDescending(tab, rowNumbers1Based) {
       if (!isAllowedTab(tab)) throw new Error("tab not allowed");
@@ -115,6 +134,21 @@ function createLiveSheetsAdapter(): SheetsAdapter {
         range: `'${tab}'!A1`,
         valueInputOption: "RAW",
         requestBody: { values: rows as string[][] },
+      });
+    },
+    async updateCells(tab, updates) {
+      if (!isAllowedTab(tab)) throw new Error("tab not allowed");
+      if (!updates.length) return;
+      const sheets = await client();
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: getSheetId(),
+        requestBody: {
+          valueInputOption: "RAW",
+          data: updates.map((u) => ({
+            range: `'${tab}'!${u.a1}`,
+            values: [[u.value]],
+          })),
+        },
       });
     },
     async deleteRowsDescending(tab, rowNumbers1Based) {

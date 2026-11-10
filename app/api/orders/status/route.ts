@@ -1,20 +1,8 @@
-import { z } from "zod";
 import { requireApiAccess, noStoreJson } from "@/lib/auth/guard";
-import { assertOrderTab } from "@/lib/sheets/rows";
-import { orderFingerprint } from "@/lib/sheets/rows";
 import { getSheetsAdapter } from "@/lib/sheets/client";
-import { loadOrdersFromSheets } from "@/lib/sheets/rows";
 import { memoryIdempotencyStore } from "@/lib/idempotency/store";
-
-const bodySchema = z.object({
-  opId: z.string().min(8).max(120),
-  sourceTab: z.string(),
-  sourceRow: z.number().int().positive(),
-  expectedFingerprint: z.string().min(16),
-  arrival: z.string().max(200).optional(),
-  payment: z.string().max(200).optional(),
-  confirm: z.literal(true),
-});
+import { applyOrderStatusUpdate } from "@/lib/orders/status-update";
+import { orderStatusBodySchema } from "@/lib/orders/status-schema";
 
 export async function POST(request: Request) {
   const access = await requireApiAccess(request, true);
@@ -26,42 +14,47 @@ export async function POST(request: Request) {
   } catch {
     return noStoreJson({ error: "Invalid JSON" }, 400);
   }
-  const parsed = bodySchema.safeParse(json);
+  const parsed = orderStatusBodySchema.safeParse(json);
   if (!parsed.success) {
     return noStoreJson({ error: "Validation failed", details: parsed.error.flatten() }, 422);
   }
 
-  const prior = await memoryIdempotencyStore.get(parsed.data.opId);
-  if (prior) return noStoreJson({ ...(prior.result as object), reused: true });
-
   try {
-    const tab = assertOrderTab(parsed.data.sourceTab);
     const adapter = getSheetsAdapter();
-    const { orders } = await loadOrdersFromSheets(adapter);
-    const live = orders.find((o) => o.sourceSheet === tab && o.sourceRow === parsed.data.sourceRow);
-    if (!live) return noStoreJson({ error: "Row not found" }, 404);
-    const fp = orderFingerprint(live);
-    if (fp !== parsed.data.expectedFingerprint) {
-      return noStoreJson({ error: "Fingerprint conflict", liveFingerprint: fp }, 409);
+    const result = await applyOrderStatusUpdate(adapter, parsed.data, {
+      store: memoryIdempotencyStore,
+    });
+
+    if (!result.ok) {
+      if (result.error === "Fingerprint conflict" && "liveFingerprint" in result) {
+        return noStoreJson(
+          {
+            error: result.error,
+            liveFingerprint: result.liveFingerprint,
+            arrival: result.arrival,
+            payment: result.payment,
+            order: result.order,
+          },
+          409,
+        );
+      }
+      if (result.error === "Row not found" || result.error === "Row not found after write") {
+        return noStoreJson({ error: result.error }, 404);
+      }
+      return noStoreJson({ error: result.error }, 400);
     }
 
-    // Status writes are planned against Sheet columns; mock adapter stores via append log for now.
-    const result = {
+    return noStoreJson({
       ok: true,
-      opId: parsed.data.opId,
-      sourceTab: tab,
-      sourceRow: parsed.data.sourceRow,
-      arrival: parsed.data.arrival ?? live.arrivalOriginal,
-      payment: parsed.data.payment ?? live.paymentOriginal,
-      reused: false,
-    };
-    await memoryIdempotencyStore.put({
-      key: parsed.data.opId,
-      op: "orders.status",
-      createdAt: new Date().toISOString(),
-      result,
+      opId: result.opId,
+      sourceTab: result.sourceTab,
+      sourceRow: result.sourceRow,
+      arrival: result.arrival,
+      payment: result.payment,
+      fingerprint: result.fingerprint,
+      order: result.order,
+      reused: result.reused,
     });
-    return noStoreJson(result);
   } catch (e) {
     return noStoreJson({ error: e instanceof Error ? e.message : "Status update failed" }, 400);
   }

@@ -65,6 +65,16 @@ npm test
 npm run build
 ```
 
+## Idempotency (Vercel)
+
+Server writes (import commit, order status, archive) use `lib/idempotency/store.ts`.
+
+- **Default:** process-memory store + same-isolate in-flight coalescing (`runIdempotent`).
+- **Works for:** retries on a warm instance; clients should reuse the same `opId`.
+- **Limits:** lost on cold start / new isolate; not shared across concurrent isolates.
+- **Safety net:** status writes still require row fingerprint match before any Sheet update — a retry after a successful write with a stale fingerprint gets `409` instead of blind overwrite.
+- Durable KV/DB is not wired yet; keep Preview-only until that lands if cross-instance idempotency is required.
+
 ## Security notes
 
 - Never commit `.env`, keys, spreadsheet exports, or customer CSVs.
@@ -72,6 +82,7 @@ npm run build
 - Mutating APIs require session + allowlist + same-origin `Origin`.
 - Spreadsheet ID, allowed tabs, and column mapping are server-owned — never trust client-supplied sheet IDs/ranges.
 - Live Shippo tokens are refused.
+- Status writes (`POST /api/orders/status`) require `confirm: true`, fingerprint match, then Sheet `values.batchUpdate` (RAW) + re-read.
 
 ## Verification checklist (before any production cutover)
 
