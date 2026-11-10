@@ -3,7 +3,8 @@
 Next.js migration of the v5 **一一妈咪好物团** shipping ops dashboard.
 
 - **Do not modify** production chatgpt.site: https://yiyi-shipping-assistant.tangwenyuan1208.chatgpt.site
-- Legacy v5 tree is preserved under `legacy/` (and still at repo root `dist/`, `worker/`, `scripts/`).
+- Legacy v5 tree is preserved under `legacy/` only (`legacy/dist`, `legacy/worker`, `legacy/scripts`).
+- Root `/` is the Next.js auth-gated dashboard (redirects unauthenticated users to `/login`). Do **not** serve or redirect to `orders.html` / other legacy `dist/*.html` as the default home.
 - **No production deploy** until tests pass, preview is verified, and an operator explicitly approves.
 
 ## Stack
@@ -50,9 +51,10 @@ See `.env.example`:
 ### Vercel
 
 1. Import this repo / branch `vercel-next` as a **preview** project.
-2. Set the env vars above in the Vercel project (never commit secrets).
-3. Deploy preview only until operators approve production cutover.
-4. Rollback: keep chatgpt.site live; revert Vercel to previous deployment or pause the project.
+2. Framework must be **Next.js** (`vercel.json` sets `framework: "nextjs"`). Clear any project **Output Directory** of `dist` — that setting would publish legacy `index.html` which meta-refreshes to `/orders.html`.
+3. Set the env vars above in the Vercel project (never commit secrets).
+4. Deploy preview only until operators approve production cutover.
+5. Rollback: keep chatgpt.site live; revert Vercel to previous deployment or pause the project.
 
 ## Scripts
 

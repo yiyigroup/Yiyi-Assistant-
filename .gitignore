@@ -17,6 +17,10 @@
 
 # production
 /build
+# never republish legacy static HTML at repo root (lives under legacy/dist)
+/dist
+/worker
+/scripts
 
 # misc
 .DS_Store
