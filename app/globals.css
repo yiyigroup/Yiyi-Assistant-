@@ -377,6 +377,139 @@ td {
   line-height: 1.35;
 }
 
+.queue-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.queue-aside {
+  display: grid;
+  gap: 10px;
+}
+
+.queue-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.queue-select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.queue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border: 1px solid #bdd2cd;
+  background: #f7fbfa;
+  color: #315d57;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: #176c59;
+  border-color: #176c59;
+  color: #fff;
+}
+
+.customer-list {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.customer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.customer:hover {
+  border-color: #9fc4bb;
+}
+
+.customer.active {
+  border-color: #176c59;
+  box-shadow: inset 3px 0 0 #176c59;
+}
+
+.customer b {
+  display: block;
+  font-size: 13px;
+}
+
+.customer small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.queue-detail {
+  min-height: 280px;
+}
+
+.queue-detail.panel {
+  margin: 0;
+}
+
+.mainhead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 12px;
+  color: #3f5f5c;
+  margin-bottom: 10px;
+}
+
+.customer-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.empty {
+  padding: 28px 12px;
+  text-align: center;
+}
+
+@media (max-width: 920px) {
+  .queue-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 580px) {
   .app-header {
     flex-direction: column;

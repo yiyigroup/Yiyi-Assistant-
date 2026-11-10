@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImportPanel } from "./import-panel";
 import { StatusPanel, type StatusOrder } from "./status-panel";
+import { CustomerQueue } from "./customer-queue";
+import type { CustomerGroup } from "@/lib/orders/types";
+import {
+  isFullyArrived,
+  isPackReady,
+  needsReview,
+  queueFilterCounts,
+} from "@/lib/orders/queue";
 
 type SyncState = {
   syncedAt: string | null;
@@ -10,18 +18,9 @@ type SyncState = {
   error: string | null;
 };
 
-type GroupSummary = {
-  key: string;
-  name: string;
-  fulfillment: string;
-  orders: { id: string; issues: string[]; content: string; sourceSheet: string }[];
-  phones: string[];
-  routes: string[];
-};
-
 export function OpsDashboard({ email }: { email: string }) {
   const [sync, setSync] = useState<SyncState>({ syncedAt: null, stale: false, error: null });
-  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groups, setGroups] = useState<CustomerGroup[]>([]);
   const [statusOrders, setStatusOrders] = useState<StatusOrder[]>([]);
   const [orderCount, setOrderCount] = useState(0);
   const [shippo, setShippo] = useState("检查中…");
@@ -39,7 +38,7 @@ export function OpsDashboard({ email }: { email: string }) {
         setMessage(data.error || "刷新失败 — 保留上次数据");
         return;
       }
-      setGroups(data.groups || []);
+      setGroups((data.groups || []) as CustomerGroup[]);
       const orders = (data.orders || []) as StatusOrder[];
       setStatusOrders(
         orders.map((o) => ({
@@ -75,14 +74,10 @@ export function OpsDashboard({ email }: { email: string }) {
       .catch(() => setShippo("Shippo 状态不可用"));
   }, [refresh]);
 
-  const reviewCount = groups.filter(
-    (g) =>
-      g.fulfillment === "待确认" ||
-      g.fulfillment === "待分类" ||
-      g.orders.some((o) => o.issues.length > 0),
-  ).length;
-  const pickupReady = groups.filter((g) => g.fulfillment === "自提").length;
-  const mailReady = groups.filter((g) => g.fulfillment === "邮寄").length;
+  const counts = useMemo(() => queueFilterCounts(groups), [groups]);
+  const reviewCount = groups.filter(needsReview).length;
+  const arrivedCount = groups.filter(isFullyArrived).length;
+  const packCount = groups.filter(isPackReady).length;
 
   return (
     <>
@@ -132,8 +127,8 @@ export function OpsDashboard({ email }: { email: string }) {
             <span>订单行</span>
           </div>
           <div className="stat">
-            <strong>{pickupReady}</strong>
-            <span>自提队列</span>
+            <strong>{arrivedCount}</strong>
+            <span>全部到齐</span>
           </div>
           <div className="stat">
             <strong>{reviewCount}</strong>
@@ -150,16 +145,23 @@ export function OpsDashboard({ email }: { email: string }) {
           <section className="panel" id="orders">
             <h3>订单与到货</h3>
             <p className="muted">
-              从 Google Sheet 读取 自提 / 邮寄 / 三谷 / 95008。写入需明确确认。
+              从 Google Sheet 读取 自提 / 邮寄 / 三谷 / 95008。写入需明确确认。下方客户队列可筛选到货与收款状态。
             </p>
-            <CustomerTable groups={groups} />
+            <div className="queue-chips" style={{ marginBottom: 8 }}>
+              <span className="badge warn">待到货 {counts.waiting}</span>
+              <span className="badge warn">部分到货 {counts.partial}</span>
+              <span className="badge ready">全部到齐 {counts.arrived}</span>
+              <span className="badge">待打包 {counts.pack}</span>
+              <span className="badge">待收款 {counts.unpaid}</span>
+            </div>
           </section>
 
           <section className="panel" id="queue">
             <h3>客户队列</h3>
             <p className="muted">
-              自提 {pickupReady} · 邮寄 {mailReady} · 待确认/待分类 {reviewCount}
+              筛选：待到货 / 部分到货 / 全部到齐 / 待打包 / 待发货 / 已发货 / 待收款 / 已收款 / 待归档 / 已归档。搜索姓名或电话。
             </p>
+            <CustomerQueue groups={groups} />
           </section>
 
           <section className="panel" id="status">
@@ -177,7 +179,9 @@ export function OpsDashboard({ email }: { email: string }) {
 
           <section className="panel" id="packing">
             <h3>待打包 / 自提</h3>
-            <p className="muted">仅在相关活跃订单全部到齐后进入打包或自提。</p>
+            <p className="muted">
+              仅在相关活跃订单全部到齐后进入打包或自提。当前可打包/自提客户：{packCount}（见客户队列「待打包」筛选）。
+            </p>
           </section>
 
           <section className="panel" id="shippo">
@@ -196,7 +200,8 @@ export function OpsDashboard({ email }: { email: string }) {
           <section className="panel" id="archive">
             <h3>完成归档</h3>
             <p className="muted">
-              完成记录为追加写入。先归档验证，再按行号降序删除活跃行；删除失败可按同一 op ID 恢复。
+              完成记录为追加写入。先归档验证，再按行号降序删除活跃行；删除失败可按同一 op ID 恢复。待归档筛选人数：
+              {counts.to_archive}。
             </p>
           </section>
         </div>
@@ -205,53 +210,8 @@ export function OpsDashboard({ email }: { email: string }) {
   );
 }
 
-function CustomerTable({ groups }: { groups: GroupSummary[] }) {
-  if (!groups.length) {
-    return (
-      <div className="note">暂无订单。配置 Google Sheet 后点击刷新，或先在 mock 环境导入 CSV。</div>
-    );
-  }
-  return (
-    <div className="tablewrap">
-      <table>
-        <thead>
-          <tr>
-            <th>客户</th>
-            <th>配送</th>
-            <th>订单数</th>
-            <th>地区</th>
-            <th>电话键</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((g) => (
-            <tr key={g.key}>
-              <td>{g.name}</td>
-              <td>
-                <span
-                  className={`badge ${g.fulfillment === "待确认" || g.fulfillment === "待分类" ? "warn" : "ready"}`}
-                >
-                  {g.fulfillment}
-                </span>
-              </td>
-              <td>{g.orders.length}</td>
-              <td>{g.routes.filter((r) => r === "三谷" || r === "95008").join("、") || "—"}</td>
-              <td>{g.phones.join(" / ") || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ReviewList({ groups }: { groups: GroupSummary[] }) {
-  const flagged = groups.filter(
-    (g) =>
-      g.fulfillment === "待确认" ||
-      g.fulfillment === "待分类" ||
-      g.orders.some((o) => o.issues.length > 0),
-  );
+function ReviewList({ groups }: { groups: CustomerGroup[] }) {
+  const flagged = groups.filter(needsReview);
   if (!flagged.length) return <div className="success">当前没有需要复核的客户。</div>;
   return (
     <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
