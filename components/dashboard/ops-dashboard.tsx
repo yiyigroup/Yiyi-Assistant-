@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ImportPanel } from "./import-panel";
 
 type SyncState = {
   syncedAt: string | null;
@@ -125,6 +126,11 @@ export function OpsDashboard({ email }: { email: string }) {
         </div>
 
         <div className="sections">
+          <section className="panel" id="import">
+            <h3>接龙导入</h3>
+            <ImportPanel onImported={() => void refresh()} />
+          </section>
+
           <section className="panel" id="orders">
             <h3>订单与到货</h3>
             <p className="muted">
