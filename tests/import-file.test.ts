@@ -146,4 +146,41 @@ describe("import file parsing", () => {
       parseImportFile({ filename: "notes.txt", buffer: Buffer.from("hello") }),
     ).toThrow(/xlsx|csv/i);
   });
+
+  it("keeps column indexes when empty cells are self-closed with a space before /", () => {
+    // Mimics openpyxl: blank 到货情况 + filled 付款情况 must not shift left.
+    const sheet = `<?xml version="1.0"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>到货情况</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>付款情况</t></is></c>
+      <c r="C1" t="inlineStr"><is><t>序号</t></is></c>
+      <c r="D1" t="inlineStr"><is><t>姓名</t></is></c>
+      <c r="E1" t="inlineStr"><is><t>内容</t></is></c>
+      <c r="F1" t="inlineStr"><is><t>总价</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr" />
+      <c r="B2" t="inlineStr"><is><t>未付</t></is></c>
+      <c r="C2" t="inlineStr"><is><t>L1</t></is></c>
+      <c r="D2" t="inlineStr"><is><t>Test</t></is></c>
+      <c r="E2" t="inlineStr"><is><t>饼干x1 自提</t></is></c>
+      <c r="F2" t="n"><v>10</v></c>
+    </row>
+  </sheetData>
+</worksheet>`;
+    const buf = buildZip([
+      { name: "[Content_Types].xml", content: CONTENT_TYPES },
+      { name: "_rels/.rels", content: ROOT_RELS },
+      { name: "xl/workbook.xml", content: WORKBOOK },
+      { name: "xl/_rels/workbook.xml.rels", content: WORKBOOK_RELS },
+      { name: "xl/worksheets/sheet1.xml", content: sheet, deflate: true },
+    ]);
+    const sheets = readOrderWorkbook(buf);
+    const row = sheets[0]?.rows[1];
+    expect(row?.[0]).toBe("");
+    expect(row?.[1]).toBe("未付");
+    expect(row?.[3]).toBe("Test");
+  });
 });

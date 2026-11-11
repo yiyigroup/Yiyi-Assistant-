@@ -97,8 +97,10 @@ function readSheetRows(
     const rowNum = Number(attrs(row.open).r);
     if (!rowNum || rowNum > 100000) continue;
     const cells: unknown[] = [];
-    // match cell opens including nested (inlineStr)
-    const cellRe = /<(?:[\w-]+:)?c\b([^>]*)(?:\/>|>([\s\S]*?)<\/(?:[\w-]+:)?c>)/g;
+    // match cells; allow `/>` or ` />` self-close without eating `/` into attrs
+    // (openpyxl empty inlineStr often writes `<c r="A2" t="inlineStr" />`)
+    const cellRe =
+      /<(?:[\w-]+:)?c\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/(?:[\w-]+:)?c>)/g;
     let cm: RegExpExecArray | null;
     while ((cm = cellRe.exec(row.inner))) {
       const a = attrs(cm[1] ?? "");
