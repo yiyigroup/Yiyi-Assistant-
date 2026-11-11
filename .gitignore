@@ -47,3 +47,5 @@ next-env.d.ts
 *.xlsx
 *.csv
 !tests/fixtures/**/*.csv
+# blank operator import template (fake sample rows only; no live PII)
+!templates/yiyi-jielong-import-template.xlsx
